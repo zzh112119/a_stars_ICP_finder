@@ -6,17 +6,19 @@ from scipy.optimize import minimize
 
 import tf
 from race.msg import drive_param
-from std_msgs.msg import Float64, Vector3
-from geometry_msgs.msg import Quaternion
+from std_msgs.msg import Float64
+from geometry_msgs.msg import Quaternion, Vector3
 from sensor_msgs.msg import LaserScan
 
 class ICP_finder:
 
     def __init__(self):
         self.pub = rospy.Publisher('drive_parameters', drive_param, queue_size=1)
-
-        # self.result = np.zeros(4)
-
+        self.odom_position = np.array([0, 0])
+        self.odom_yaw = 0
+        self.points = np.array([])
+        self.position = np.zeros(3)
+        self.result = np.zeros(4)
         rospy.Subscriber("/vesc/odom/pose/pose/position", Vector3, self.callback_odom_position)
         rospy.Subscriber("/vesc/odom/pose/pose/orientation", Quaternion, self.callback_odom_orientation)
         rospy.Subscriber("/scan", LaserScan, self.callback_scan)
@@ -71,6 +73,7 @@ class ICP_finder:
         M_i_s = np.empty((len(self.points), 2, 4))
         M_i_s[:, 0, 0] = 1
         M_i_s[:, 0, 1] = 0
+        print(self.points.shape)
         M_i_s[:, 0, 2] = self.points[:, 0]
         M_i_s[:, 0, 3] = -self.points[:, 1]
 
@@ -85,8 +88,10 @@ class ICP_finder:
             M += np.matmul(np.transpose(M_i), M_i)
 
         # Get the points of the old scan, returning if unset.
-        points_old = self.points.get('old_points', None)
+        points_old = self.get('points_old', None)
+        print(points_old)
         if points_old == None:
+            self.points_old = self.points
             return
         xs_old = points_old[:, 0]
         ys_old = points_old[:, 1]
@@ -149,21 +154,24 @@ class ICP_finder:
             else:
                 k += 1
 
-        # Calculate
+        # Calculate position
+        self.x = x
         position = self.odom_position
         M_i = np.array([[1, 0, position[0], -position[1]],
                         [0, 1, position[1], position[0]]])
-        x, y = np.matmul(M_i, x)
-        self.loc_tf.pub(Vector3(x, y, 0))
+        position = np.matmul(M_i, x)
+        self.position = position
+        self.loc_tf.pub(Vector3(position[0], position[1], 0))
+        self.points_old = self.points
 
     # might be useful to send the result to tf frame for visualization
-    # def broadcast_result(self):
-    #    br = tf.TransformBroadcaster()
-    #    br.sendTransform((self.result[0], self.result[1], 0),
-    #                     tf.transformations.quaternion_from_euler(0, 0, self.result[2]),
-    #                     rospy.Time.now(),
-    #                     result_pos,
-    #                     "world")
+    def broadcast_result(self):
+        br = tf.TransformBroadcaster()
+        br.sendTransform((self.result[0], self.result[1], 0),
+                          tf.transformations.quaternion_from_euler(0, 0, self.result[2]),
+                          rospy.Time.now(),
+                          self.position,
+                          "world")
 
 # Boilerplate code to start this ROS node.
 # DO NOT MODIFY!
@@ -173,7 +181,8 @@ if __name__ == '__main__':
     r = rospy.Rate(40)
 
     while not rospy.is_shutdown():
-        C.broadcast_result()
+        C.calculation()
+        #C.broadcast_result()
         r.sleep()
 
 
