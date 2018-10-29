@@ -14,11 +14,13 @@ class ICP_finder:
 
     def __init__(self):
         self.pub = rospy.Publisher('drive_parameters', drive_param, queue_size=1)
-        self.odom_position = np.array([0, 0])
+        # Variables and arrays that will be used in the algorithm
+        self.odom_position = np.zeros(2)
         self.odom_yaw = 0
-        self.points = np.array([])
+        self.points = np.zeros((1081, 2))
+        self.points_old = np.zeros((0, 2))
+        self.roto = np.zeros(4)
         self.position = np.zeros(3)
-        self.result = np.zeros(4)
         rospy.Subscriber("/vesc/odom/pose/pose/position", Vector3, self.callback_odom_position)
         rospy.Subscriber("/vesc/odom/pose/pose/orientation", Quaternion, self.callback_odom_orientation)
         rospy.Subscriber("/scan", LaserScan, self.callback_scan)
@@ -55,9 +57,12 @@ class ICP_finder:
             points[i, 1] = ranges[i] * np.sin(angles[i])
 
         # Remove bad data.
-        bad_mask = np.any([ranges < range_min, ranges > range_max,
-                           ranges == np.nan, ranges == np.inf], axis=0)
-        points = points[~bad_mask]
+        #good_mask = np.logical_and(ranges >= range_min, ranges <= range_max)
+        #print(good_mask)
+        #good_mask = np.logical_and(good_mask, ranges != np.nan)
+        #good_mask = np.logical_and(good_mask, ranges != np.inf)
+        #print(good_mask)
+        #points = points[good_mask]
         self.points = points
 
     def calculation(self):
@@ -73,7 +78,7 @@ class ICP_finder:
         M_i_s = np.empty((len(self.points), 2, 4))
         M_i_s[:, 0, 0] = 1
         M_i_s[:, 0, 1] = 0
-        print(self.points.shape)
+
         M_i_s[:, 0, 2] = self.points[:, 0]
         M_i_s[:, 0, 3] = -self.points[:, 1]
 
@@ -88,13 +93,11 @@ class ICP_finder:
             M += np.matmul(np.transpose(M_i), M_i)
 
         # Get the points of the old scan, returning if unset.
-        points_old = self.get('points_old', None)
-        print(points_old)
-        if points_old == None:
+        if not len(self.points_old):
             self.points_old = self.points
             return
-        xs_old = points_old[:, 0]
-        ys_old = points_old[:, 1]
+        xs_old = self.points_old[:, 0]
+        ys_old = self.points_old[:, 1]
 
         # https://docs.scipy.org/doc/scipy-0.19.1/reference/generated/scipy.optimize.minimize.html
         def optimizer(x):
@@ -104,8 +107,8 @@ class ICP_finder:
 
         # Guess x: while old x and new x are far, update the old x and repeat.
         k = 0
-        max_k = 100
-        epsilon = 0.1
+        max_k = 50
+        epsilon = 1
         while True:
             # Calculate g, projecting points into old frame using guess for x.
             g = np.zeros((1, 4))
@@ -117,7 +120,7 @@ class ICP_finder:
                     np.square(xs_old - x_new) + np.square(ys_old - y_new))
 
                 # Get the closest point.
-                pi_i = points_old[np.argmin(distances)]
+                pi_i = self.points_old[np.argmin(distances)]
                 pi_i = pi_i.reshape((2, 1))
 
                 # Update g.
@@ -139,7 +142,7 @@ class ICP_finder:
                  np.sin(intersection_polar[1])])
 
             # Check that the projection worked.
-            # print(f'cos(theta)^2 + sin(theta)^2 = {x_new[2]**2 + x_new[3]**2}')
+            # print(x_new[2]**2 + x_new[3]**2)
 
             # Project points using new guess.
             points_proj = np.array(
@@ -155,13 +158,13 @@ class ICP_finder:
                 k += 1
 
         # Calculate position
-        self.x = x
-        position = self.odom_position
-        M_i = np.array([[1, 0, position[0], -position[1]],
-                        [0, 1, position[1], position[0]]])
-        position = np.matmul(M_i, x)
+        print(x)
+        self.roto = x
+        M_i = np.array([[1, 0, self.position[0], -self.position[1]],
+                        [0, 1, self.position[1], self.position[0]]])
+        position = np.matmul(M_i, x0)
         self.position = position
-        self.loc_tf.pub(Vector3(position[0], position[1], 0))
+        self.loc_tf.publish(Vector3(position[0], position[1], 0))
         self.points_old = self.points
 
     # might be useful to send the result to tf frame for visualization
