@@ -15,12 +15,15 @@ class ICP_finder:
     def __init__(self):
         self.pub = rospy.Publisher('drive_parameters', drive_param, queue_size=1)
         # Variables and arrays that will be used in the algorithm
+        # TODO: check if initialization is ok and values are being changed
         self.odom_position = np.zeros(2)
         self.odom_yaw = 0
         self.points = np.zeros((1081, 2))
         self.points_old = np.zeros((0, 2))
         self.roto = np.zeros(4)
         self.position = np.zeros(3)
+        self.is_first = True
+        self.is_second = False
         rospy.Subscriber("/vesc/odom/pose/pose/position", Vector3, self.callback_odom_position)
         rospy.Subscriber("/vesc/odom/pose/pose/orientation", Quaternion, self.callback_odom_orientation)
         rospy.Subscriber("/scan", LaserScan, self.callback_scan)
@@ -57,19 +60,24 @@ class ICP_finder:
             points[i, 1] = ranges[i] * np.sin(angles[i])
 
         # Remove bad data.
-        #good_mask = np.logical_and(ranges >= range_min, ranges <= range_max)
-        #print(good_mask)
-        #good_mask = np.logical_and(good_mask, ranges != np.nan)
-        #good_mask = np.logical_and(good_mask, ranges != np.inf)
-        #print(good_mask)
-        #points = points[good_mask]
+        points = points[~(ranges < range_min | ranges > range_max | ranges == np.nan | ranges == np.inf)]
         self.points = points
 
     def calculation(self):
         # Set odometry as first guess x0 = [t_x, t_y, cos(theta), sin(theta)]
-        x0 = np.array([self.odom_position[0], self.odom_position[1],
-                       np.cos(self.odom_yaw), np.sin(self.odom_yaw)])
-        x0 = x0.reshape((4, 1))
+        # TODO: check we should use odom in time 0 and then roto
+        if self.is_first:
+            self.points_old = self.points
+            self.is_first = False
+            self.is_second = True
+            return
+        elif self.is_second:
+            x0 = np.array([self.odom_position[0], self.odom_position[1],
+                           np.cos(self.odom_yaw), np.sin(self.odom_yaw)])
+            x0 = x0.reshape((4, 1))
+            self.is_second = False
+        else:
+            x0 = self.roto
         x = x0
 
         # Solve x* = argmin_x x'M x + g'x s.t. x'Wx <= 1 and reproject to = 1
@@ -92,10 +100,7 @@ class ICP_finder:
         for M_i in M_i_s:
             M += np.matmul(np.transpose(M_i), M_i)
 
-        # Get the points of the old scan, returning if unset.
-        if not len(self.points_old):
-            self.points_old = self.points
-            return
+        # Get the points of the old scan.
         xs_old = self.points_old[:, 0]
         ys_old = self.points_old[:, 1]
 
@@ -159,11 +164,12 @@ class ICP_finder:
 
         # Calculate position
         print(x)
-        self.roto = x
+        self.roto = np.sum(np.outer(self.roto, x), axis=0)
         M_i = np.array([[1, 0, self.position[0], -self.position[1]],
                         [0, 1, self.position[1], self.position[0]]])
-        position = np.matmul(M_i, x0)
+        position = np.matmul(M_i, self.roto)
         self.position = position
+        # TODO: check topic being published to
         self.loc_tf.publish(Vector3(position[0], position[1], 0))
         self.points_old = self.points
 
