@@ -165,7 +165,7 @@ class ICP_finder:
 
         # Calculate position
         print(x)
-        roto = np.eyes((4, 4))
+        roto = np.eye((4, 4))
         roto[0, 3]  = x[0]
         roto[1, 3]  = x[1]
         roto[0, 0]  = x[2]
