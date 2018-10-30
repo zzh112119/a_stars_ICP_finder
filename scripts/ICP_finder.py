@@ -38,7 +38,7 @@ class ICP_finder:
     def callback_odom_orientation(self, data):
         temp_quaternion = [data.x,data.y,data.z,data.w]
         euler = tf.transformations.euler_from_quaternion(temp_quaternion)
-        self.odom_yaw = euler[2]
+        self.odom_yaw = 180*euler[2]/math.pi
 
     # Convert ranges to points, removing bad data.
     def callback_scan(self, data):
@@ -160,12 +160,14 @@ class ICP_finder:
 	    
             guess_distance_mse = np.sqrt(sum(np.square(xs_old[:n] - xs_proj[:n]) + np.square(ys_old[:n] - ys_proj[:n])))
             if guess_distance_mse < epsilon or k > max_k:
-                break
+		print('guess distance: ')		
+		print(guess_distance_mse)                
+		break
             else:
                 k += 1
 
         # Calculate position
-        print(x)
+        #print(x)
 	#rospy.loginfo(x)
         roto = np.eye(4)
         roto[0, 3]  = x[0]
@@ -175,12 +177,23 @@ class ICP_finder:
         roto[1, 0]  = x[3]
         roto[0, 1]  = -x[3]
         self.roto_4 = np.matmul(self.roto_4, roto)
+
+	print('roto 4 x: ')
+	print(self.roto_4[0,3])
+
+	print('roto 4 y: ')
+	print(self.roto_4[1,3])
+
         self.roto_1 = np.array([self.roto_4[0, 3], self.roto_4[1, 3], self.roto_4[0, 0], self.roto_4[1, 0]])
         self.roto_1 = self.roto_1.reshape((4, 1))
         M_i = np.array([[1, 0, self.position[0], -self.position[1]],
                         [0, 1, self.position[1], self.position[0]]])
         position = np.matmul(M_i, self.roto_1)
         self.position = position
+	
+	#print('position: ')
+	#print(position)
+
         # TODO: check topic being published to
         self.loc_tf.publish(Vector3(position[0], position[1], 0))
         self.points_old = self.points

@@ -8,7 +8,7 @@ import yaml
 import sys
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Vector3
+from geometry_msgs.msg import Vector3, Point
 from std_msgs.msg import Float64
 import pdb
 import csv
@@ -20,26 +20,27 @@ import tf
 x=0
 y=0
 quaternion=[]
-pub = rospy.Publisher('odom_array', Vector3, queue_size=10)
-msg=Vector3()
+pub = rospy.Publisher('odom_array', Point, queue_size=10)
+msg=Point()
 
 def Position_change(data):
 	global x
 	global y
+
 	qx=data.pose.pose.orientation.x
 	qy=data.pose.pose.orientation.y
 	qz=data.pose.pose.orientation.z
 	qw=data.pose.pose.orientation.w
 	x=data.pose.pose.position.x
 	y=data.pose.pose.position.y
-	quaternion = (qx,qy,qw,qz)
+	quaternion = (qx,qy,qz,qw)
 	euler = tf.transformations.euler_from_quaternion(quaternion)
 	roll = euler[0]
 	pitch = euler[1]
 	yaw = 180*euler[2]/math.pi
-	msg.x=x
-	msg.y=y
-	msg.z=yaw
+	msg.x = x
+	msg.y = y
+	msg.z = 0
 	br = tf.TransformBroadcaster()
 	br.sendTransform((x, y, 0),tf.transformations.quaternion_from_euler(0, 0, yaw),rospy.Time.now(),"car","world")
 	pub.publish(msg)

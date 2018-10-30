@@ -10,5 +10,7 @@
   <node pkg="a_stars_scan_matching" name="wall_following_analysis_node" type="wall_following_analysis" output="screen"/>
   <node pkg="a_stars_scan_matching" name="find_gap_node" type="find_gap.py" output="screen"/>
   <node pkg="a_stars_scan_matching" name="scan_matcher" type="ICP_finder.py" output="screen"/>
+  <node pkg="a_stars_scan_matching" name="odom_orientation_node" type="quat-euler.py" output="screen"/>
+
 
 </launch>
