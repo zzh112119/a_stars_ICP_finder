@@ -18,7 +18,8 @@ class ICP_finder:
         # TODO: check if initialization is ok and values are being changed
         self.odom_position = np.zeros(2)
         self.odom_yaw = 0
-        self.points = np.zeros((500, 2))
+        self.points = np.zeros((1081, 2))
+        self.points_temp = np.zeros((1081, 2))
         self.points_old = np.zeros((0, 2))
         self.roto_4 = np.eye(4)
         self.roto_1 = np.zeros((4, 1))
@@ -42,8 +43,8 @@ class ICP_finder:
 
     # Convert ranges to points, removing bad data.
     def callback_scan(self, data):
-        ranges = np.array(data.ranges)[0:500]
-        n = 500#len(ranges)
+        ranges = np.array(data.ranges)
+        n = len(ranges)
 
         # Calculate angles.
         angle_min = data.angle_min
@@ -61,12 +62,17 @@ class ICP_finder:
             points[i, 1] = ranges[i] * np.sin(angles[i])
 
         # Adjust bad data
-        #points = points[~((ranges < range_min) | (ranges > range_max) | (ranges == np.nan) | (ranges == np.inf))]
-        points[(ranges < range_min)] = range_min
-	points[(ranges > range_max)] = range_max
-	points[(ranges == np.inf)] = range_max
-	points[(ranges == np.nan)] = 0
-	self.points = points[0:500]
+        points = points[~((ranges < range_min) | (ranges > range_max) | (ranges == np.nan) | (ranges == np.inf))]
+ #        points[(ranges < range_min)] = range_min
+    # points[(ranges > range_max)] = range_max
+    # points[(ranges == np.inf)] = range_max
+    # points[(ranges == np.nan)] = 0
+        self.points_temp = points
+
+    def getPoints(self):
+
+        self.points = self.points_temp
+
 
     def calculation(self):
         # Set odometry as first guess x0 = [t_x, t_y, cos(theta), sin(theta)]
@@ -76,13 +82,13 @@ class ICP_finder:
             self.is_first = False
             self.is_second = True
             return
-        elif self.is_second:
+        else:# self.is_second:
             x0 = np.array([self.odom_position[0], self.odom_position[1],
                            np.cos(self.odom_yaw), np.sin(self.odom_yaw)])
             x0 = x0.reshape((4, 1))
             self.is_second = False
-        else:
-            x0 = self.roto_1
+        # else:
+        #     x0 = self.roto_1
         x = x0
 
         # Solve x* = argmin_x x'M x + g'x s.t. x'Wx <= 1 and reproject to = 1
@@ -120,6 +126,10 @@ class ICP_finder:
         max_k = 10
         epsilon = 1
         while True:
+
+            # if k==0:
+            #     x = 
+
             # Calculate g, projecting points into old frame using guess for x.
             g = np.zeros((1, 4))
 
@@ -160,18 +170,19 @@ class ICP_finder:
             xs_proj, ys_proj = points_proj[:, 0], points_proj[:, 1]
             x = x_new
 
-	    
-            guess_distance_mse = np.sqrt(sum(np.square(xs_old - xs_proj) + np.square(ys_old - ys_proj)))
+            n = min(len(xs_old),len(xs_proj))
+
+            guess_distance_mse = np.sqrt(sum(np.square(xs_old[:n] - xs_proj[:n]) + np.square(ys_old[:n] - ys_proj[:n])))
             if guess_distance_mse < epsilon or k > max_k:
-		print('guess distance: ')		
-		print(guess_distance_mse)                
-		break
+                print('guess distance: ')       
+                print(guess_distance_mse)                
+                break
             else:
                 k += 1
 
         # Calculate position
         #print(x)
-	#rospy.loginfo(x)
+    #rospy.loginfo(x)
         roto = np.eye(4)
         roto[0, 3]  = x[0]
         roto[1, 3]  = x[1]
@@ -181,11 +192,11 @@ class ICP_finder:
         roto[0, 1]  = -x[3]
         self.roto_4 = np.matmul(self.roto_4, roto)
 
-	print('roto 4 x: ')
-	print(self.roto_4[0,3])
+        print('roto 4 x: ')
+        print(self.roto_4[0,3])
 
-	print('roto 4 y: ')
-	print(self.roto_4[1,3])
+        print('roto 4 y: ')
+        print(self.roto_4[1,3])
 
         self.roto_1 = np.array([self.roto_4[0, 3], self.roto_4[1, 3], self.roto_4[0, 0], self.roto_4[1, 0]])
         self.roto_1 = self.roto_1.reshape((4, 1))
@@ -193,9 +204,9 @@ class ICP_finder:
                         [0, 1, self.position[1], self.position[0]]])
         position = np.matmul(M_i, self.roto_1)
         self.position = position
-	
-	#print('position: ')
-	#print(position)
+    
+    #print('position: ')
+    #print(position)
 
         # TODO: check topic being published to
         self.loc_tf.publish(Vector3(position[0], position[1], 0))
@@ -218,6 +229,7 @@ if __name__ == '__main__':
     r = rospy.Rate(40)
 
     while not rospy.is_shutdown():
+        C.getPoints()
         C.calculation()
         #C.broadcast_result()
         r.sleep()
