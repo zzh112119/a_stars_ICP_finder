@@ -61,7 +61,7 @@ class ICP_finder:
             points[i, 1] = ranges[i] * np.sin(angles[i])
 
         # Remove bad data.
-        points = points[~(ranges < range_min | ranges > range_max | ranges == np.nan | ranges == np.inf)]
+        points = points[~(ranges < range_min) | (ranges > range_max) | (ranges == np.nan) | (ranges == np.inf)]
         self.points = points
 
     def calculation(self):
