@@ -21,7 +21,7 @@ class ICP_finder:
         self.points = np.zeros((1081, 2))
         self.points_old = np.zeros((0, 2))
         self.roto_4 = np.zeros((4, 4))
-        self.roto_4 = np.zeros((4, 1))
+        self.roto_1 = np.zeros((4, 1))
         self.position = np.zeros(3)
         self.is_first = True
         self.is_second = False
