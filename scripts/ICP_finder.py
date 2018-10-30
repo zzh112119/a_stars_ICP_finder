@@ -20,7 +20,7 @@ class ICP_finder:
         self.odom_yaw = 0
         self.points = np.zeros((1081, 2))
         self.points_old = np.zeros((0, 2))
-        self.roto_4 = np.zeros((4, 4))
+        self.roto_4 = np.eye(4)
         self.roto_1 = np.zeros((4, 1))
         self.position = np.zeros(3)
         self.is_first = True
@@ -42,7 +42,7 @@ class ICP_finder:
 
     # Convert ranges to points, removing bad data.
     def callback_scan(self, data):
-        ranges = data.ranges
+        ranges = np.array(data.ranges)
         n = len(ranges)
 
         # Calculate angles.
@@ -60,8 +60,8 @@ class ICP_finder:
             points[i, 0] = ranges[i] * np.cos(angles[i])
             points[i, 1] = ranges[i] * np.sin(angles[i])
 
-        # Remove bad data.
-        points = points[~(ranges < range_min) | (ranges > range_max) | (ranges == np.nan) | (ranges == np.inf)]
+        # Remove bad data
+        points = points[~((ranges < range_min) | (ranges > range_max) | (ranges == np.nan) | (ranges == np.inf))]
         self.points = points
 
     def calculation(self):
@@ -113,7 +113,7 @@ class ICP_finder:
 
         # Guess x: while old x and new x are far, update the old x and repeat.
         k = 0
-        max_k = 50
+        max_k = 5
         epsilon = 1
         while True:
             # Calculate g, projecting points into old frame using guess for x.
@@ -156,8 +156,9 @@ class ICP_finder:
             xs_proj, ys_proj = points_proj[:, 0], points_proj[:, 1]
             x = x_new
 
-            guess_distance_mse = np.sqrt(
-                np.sum(np.square(xs_old - xs_proj) + np.square(ys_old - ys_proj)))
+	    n = min(len(xs_old),len(xs_proj))
+	    
+            guess_distance_mse = np.sqrt(sum(np.square(xs_old[:n] - xs_proj[:n]) + np.square(ys_old[:n] - ys_proj[:n])))
             if guess_distance_mse < epsilon or k > max_k:
                 break
             else:
@@ -165,6 +166,7 @@ class ICP_finder:
 
         # Calculate position
         print(x)
+	#rospy.loginfo(x)
         roto = np.eye(4)
         roto[0, 3]  = x[0]
         roto[1, 3]  = x[1]
