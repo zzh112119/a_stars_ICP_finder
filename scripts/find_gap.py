@@ -86,7 +86,7 @@ class find_gap():
             counter_msg.data=self.counter
             if(self.counter==0):
                 self.turn_detect.publish(counter_msg)
-                print(self.cluster_counter)
+                #print(self.cluster_counter)
                 #print(self.counter)           
             elif(self.counter==1):
                 self.turn_detect.publish(counter_msg)
