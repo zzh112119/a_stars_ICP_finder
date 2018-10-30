@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>a_stars_ICP_finder</name>
+  <name>a_stars_scan_matching</name>
   <version>0.0.0</version>
   <description>The ICP finder package</description>
 

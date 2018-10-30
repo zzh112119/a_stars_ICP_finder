@@ -5,9 +5,10 @@
   </include>
 
   # output="screen" allows us to see print statements
-  <node pkg="a_stars_ICP_finder" name="control_node" type="control.py" output="screen"/>
-  <node pkg="a_stars_ICP_finder" name="sim_connector_node" type="sim_connector.py" output="screen"/>
-  <node pkg="a_stars_ICP_finder" name="wall_following_analysis_node" type="wall_following_analysis" output="screen"/>
-  <node pkg="a_stars_ICP_finder" name="find_gap_node" type="find_gap.py" output="screen"/>
+  <node pkg="a_stars_scan_matching" name="control_node" type="control.py" output="screen"/>
+  <node pkg="a_stars_scan_matching" name="sim_connector_node" type="sim_connector.py" output="screen"/>
+  <node pkg="a_stars_scan_matching" name="wall_following_analysis_node" type="wall_following_analysis" output="screen"/>
+  <node pkg="a_stars_scan_matching" name="find_gap_node" type="find_gap.py" output="screen"/>
+  <node pkg="a_stars_scan_matching" name="scan_matcher" type="ICP_finder.py" output="screen"/>
 
 </launch>

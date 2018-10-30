@@ -3,8 +3,9 @@
 
   <include file="$(find racecar)/launch/teleop.launch"/>
 
-  <node pkg="a_stars_ICP_finder" name="pid_error_node" type="pid_error.py" output="screen"/> 
-  <node pkg="a_stars_ICP_finder" name="control_node" type="control.py" output="screen"/>
-  <node pkg="a_stars_ICP_finder" name="dead_mans_switch" type="dead_mans_switch.py" output="screen"/>
+  <node pkg="a_stars_scan_matching" name="pid_error_node" type="pid_error.py" output="screen"/> 
+  <node pkg="a_stars_scan_matching" name="control_node" type="control.py" output="screen"/>
+  <node pkg="a_stars_scan_matching" name="dead_mans_switch" type="dead_mans_switch.py" output="screen"/>
+  <node pkg="a_stars_scan_matching" name="scan_matcher" type="ICP_finder.py" output="screen"/>
 
 </launch>
