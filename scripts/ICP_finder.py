@@ -18,7 +18,7 @@ class ICP_finder:
         # TODO: check if initialization is ok and values are being changed
         self.odom_position = np.zeros(2)
         self.odom_yaw = 0
-        self.points = np.zeros((1081, 2))
+        self.points = np.zeros((500, 2))
         self.points_old = np.zeros((0, 2))
         self.roto_4 = np.eye(4)
         self.roto_1 = np.zeros((4, 1))
@@ -42,8 +42,8 @@ class ICP_finder:
 
     # Convert ranges to points, removing bad data.
     def callback_scan(self, data):
-        ranges = np.array(data.ranges)
-        n = len(ranges)
+        ranges = np.array(data.ranges)[0:500]
+        n = 500#len(ranges)
 
         # Calculate angles.
         angle_min = data.angle_min
@@ -60,9 +60,13 @@ class ICP_finder:
             points[i, 0] = ranges[i] * np.cos(angles[i])
             points[i, 1] = ranges[i] * np.sin(angles[i])
 
-        # Remove bad data
-        points = points[~((ranges < range_min) | (ranges > range_max) | (ranges == np.nan) | (ranges == np.inf))]
-        self.points = points
+        # Adjust bad data
+        #points = points[~((ranges < range_min) | (ranges > range_max) | (ranges == np.nan) | (ranges == np.inf))]
+        points[(ranges < range_min)] = range_min
+	points[(ranges > range_max)] = range_max
+	points[(ranges == np.inf)] = range_max
+	points[(ranges == np.nan)] = 0
+	self.points = points[0:500]
 
     def calculation(self):
         # Set odometry as first guess x0 = [t_x, t_y, cos(theta), sin(theta)]
@@ -113,7 +117,7 @@ class ICP_finder:
 
         # Guess x: while old x and new x are far, update the old x and repeat.
         k = 0
-        max_k = 5
+        max_k = 10
         epsilon = 1
         while True:
             # Calculate g, projecting points into old frame using guess for x.
@@ -156,9 +160,8 @@ class ICP_finder:
             xs_proj, ys_proj = points_proj[:, 0], points_proj[:, 1]
             x = x_new
 
-	    n = min(len(xs_old),len(xs_proj))
 	    
-            guess_distance_mse = np.sqrt(sum(np.square(xs_old[:n] - xs_proj[:n]) + np.square(ys_old[:n] - ys_proj[:n])))
+            guess_distance_mse = np.sqrt(sum(np.square(xs_old - xs_proj) + np.square(ys_old - ys_proj)))
             if guess_distance_mse < epsilon or k > max_k:
 		print('guess distance: ')		
 		print(guess_distance_mse)                
