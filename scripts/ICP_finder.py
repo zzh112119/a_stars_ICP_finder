@@ -20,7 +20,8 @@ class ICP_finder:
         self.odom_yaw = 0
         self.points = np.zeros((1081, 2))
         self.points_old = np.zeros((0, 2))
-        self.roto = np.zeros(4)
+        self.roto_4 = np.zeros((4, 4))
+        self.roto_4 = np.zeros((4, 1))
         self.position = np.zeros(3)
         self.is_first = True
         self.is_second = False
@@ -77,7 +78,7 @@ class ICP_finder:
             x0 = x0.reshape((4, 1))
             self.is_second = False
         else:
-            x0 = self.roto
+            x0 = self.roto_1
         x = x0
 
         # Solve x* = argmin_x x'M x + g'x s.t. x'Wx <= 1 and reproject to = 1
@@ -164,10 +165,19 @@ class ICP_finder:
 
         # Calculate position
         print(x)
-        self.roto = np.sum(np.outer(self.roto, x), axis=0)
+        roto = np.eyes((4, 4))
+        roto[0, 3]  = x[0]
+        roto[1, 3]  = x[1]
+        roto[0, 0]  = x[2]
+        roto[1, 1]  = x[2]
+        roto[1, 0]  = x[3]
+        roto[0, 1]  = -x[3]
+        self.roto_4 = np.matmul(self.roto_4, roto)
+        self.roto_1 = np.array([self.roto_4[0, 3], self.roto_4[1, 3], self.roto_4[0, 0], self.roto_4[1, 0]])
+        self.roto_1 = self.roto_1.reshape((4, 1))
         M_i = np.array([[1, 0, self.position[0], -self.position[1]],
                         [0, 1, self.position[1], self.position[0]]])
-        position = np.matmul(M_i, self.roto)
+        position = np.matmul(M_i, self.roto_1)
         self.position = position
         # TODO: check topic being published to
         self.loc_tf.publish(Vector3(position[0], position[1], 0))
